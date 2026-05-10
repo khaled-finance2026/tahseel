@@ -462,8 +462,10 @@ body {
   gap: 10px;
   padding: 12px 0;
   border-bottom: 1px solid #eeeeee;
+  cursor: pointer;
 }
 .stmt-item:last-child { border-bottom: none; }
+.stmt-item:active     { background: #f5f5f5; }
 .stmt-dot  { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 .stmt-info { flex: 1; }
 .stmt-desc { font-size: 14px; font-weight: 700; }
@@ -1065,7 +1067,7 @@ body {
     <div class="act-row">
       <button class="act-btn"
         style="color:var(--green); border-color:var(--green); background:var(--gbg)"
-        onclick="toast('فتح واتساب...')">
+        onclick="openWhatsApp()">
         💬 واتساب
       </button>
       <button class="act-btn"
@@ -1075,13 +1077,13 @@ body {
       </button>
       <button class="act-btn"
         style="color:var(--amb); border-color:var(--amb); background:var(--abg)"
-        onclick="toast('اتصال...')">
+        onclick="openCall()">
         📞 اتصال
       </button>
     </div>
     <div class="stmt-title">كشف حساب كامل</div>
     <div id="cd-stmt"></div>
-<button class="bp" onclick="payFirstUnpaid()">
+    <button class="bp" onclick="payFirstUnpaid()">
       💰 تسجيل دفعة
     </button>
     <button class="bs"
@@ -1160,30 +1162,27 @@ body {
     </div>
   </div>
 </div>
+
+<!-- نافذة تعديل المعاملة -->
 <div class="ov" id="ov-txedit" onclick="this.classList.remove('open')">
   <div class="sheet" onclick="event.stopPropagation()">
     <div class="hdl"></div>
     <div class="stit">تعديل المعاملة</div>
-
     <input type="hidden" id="te-id">
-
     <div class="fg">
       <label>المبلغ الأصلي</label>
       <input class="fi" id="te-amount" type="number"
         readonly style="opacity:0.6; background:#eee">
     </div>
-
     <div class="fg">
       <label>دفعة جزئية (₪) — فارغ يعني دفع كامل</label>
       <input class="fi" id="te-partial" type="number"
         placeholder="مثال: 500 من أصل 1200">
     </div>
-
     <div class="fg">
       <label>تاريخ الاستحقاق</label>
       <input class="fi" id="te-due" type="date">
     </div>
-
     <div class="fg">
       <label>حالة الدفع</label>
       <select class="fi" id="te-status">
@@ -1193,34 +1192,32 @@ body {
         <option value="تبرعات">تبرعات</option>
       </select>
     </div>
-
     <div id="te-info"
       style="background:#fff0cc; border:2px solid #e6a800;
       border-radius:10px; padding:12px; margin-bottom:14px;
       font-size:14px; font-weight:700; color:#7a4800;
       display:none">
     </div>
-
-    <button class="bp" onclick="saveTxEdit()">
-      حفظ التعديل
-    </button>
+    <button class="bp" onclick="saveTxEdit()">حفظ التعديل</button>
     <button class="bs"
       onclick="document.getElementById('ov-txedit').classList.remove('open')">
       إلغاء
     </button>
   </div>
 </div>
+
 <div id="toast"></div>
 <button class="fab" id="fab"
   style="display:none"
   onclick="document.getElementById('ov-atx').classList.add('open')">
   ＋
 </button>
+
 <script>
 
 // ── إعداد Supabase ──
-let sb    = null;
-let sbOk  = false;
+let sb   = null;
+let sbOk = false;
 
 try {
   if (CONFIG.SUPABASE_ANON !== 'YOUR_ANON_KEY_HERE') {
@@ -1234,13 +1231,13 @@ let AC        = [];
 let AT        = [];
 let cf        = 'active';
 let tf        = 'unpaid';
+let rf        = 'today';
+let curCustId = null;
 let sortKey   = 'debt';
 let sortDir   = 'desc';
 let txSortKey = 'amount';
 let txSortDir = 'desc';
 let curNav    = document.getElementById('nhome');
-let rf        = 'today';
-let curCustId = null;
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -1260,18 +1257,18 @@ const DC = [
 
 // ── بيانات تجريبية للمعاملات ──
 const DT = [
-  { id:'t1',  customer_id:'c1',  amount:1200, status:'غير مدفوع', description:'بضاعة',       due_date: TODAY         },
-  { id:'t2',  customer_id:'c2',  amount:850,  status:'مدفوع',     description:'خدمات',       due_date:'2026-04-05'   },
-  { id:'t3',  customer_id:'c3',  amount:2300, status:'غير مدفوع', description:'مواد بناء',   due_date:'2026-05-01'   },
-  { id:'t4',  customer_id:'c4',  amount:600,  status:'غير مدفوع', description:'إيجار',       due_date: TODAY         },
-  { id:'t5',  customer_id:'c5',  amount:3500, status:'مدفوع',     description:'بضاعة',       due_date:'2026-04-20'   },
-  { id:'t6',  customer_id:'c6',  amount:1800, status:'معدوم',     description:'ديون قديمة',  due_date:'2026-02-01'   },
-  { id:'t7',  customer_id:'c7',  amount:450,  status:'غير مدفوع', description:'خدمات',       due_date: TODAY         },
-  { id:'t8',  customer_id:'c8',  amount:5200, status:'غير مدفوع', description:'بضاعة كبيرة', due_date:'2026-04-28'  },
-  { id:'t9',  customer_id:'c1',  amount:800,  status:'مدفوع',     description:'سابق',        due_date:'2026-03-01'   },
-  { id:'t10', customer_id:'c3',  amount:500,  status:'مدفوع',     description:'دفعة أولى',   due_date:'2026-04-01'   },
-  { id:'t11', customer_id:'c9',  amount:3000, status:'غير مدفوع', description:'بضاعة',       due_date:'2026-05-05'   },
-  { id:'t12', customer_id:'c10', amount:750,  status:'غير مدفوع', description:'خدمات',       due_date:'2026-04-30'   },
+  { id:'t1',  customer_id:'c1',  amount:1200, status:'غير مدفوع', description:'بضاعة',        due_date: TODAY       },
+  { id:'t2',  customer_id:'c2',  amount:850,  status:'مدفوع',     description:'خدمات',        due_date:'2026-04-05' },
+  { id:'t3',  customer_id:'c3',  amount:2300, status:'غير مدفوع', description:'مواد بناء',    due_date:'2026-05-01' },
+  { id:'t4',  customer_id:'c4',  amount:600,  status:'غير مدفوع', description:'إيجار',        due_date: TODAY       },
+  { id:'t5',  customer_id:'c5',  amount:3500, status:'مدفوع',     description:'بضاعة',        due_date:'2026-04-20' },
+  { id:'t6',  customer_id:'c6',  amount:1800, status:'معدوم',     description:'ديون قديمة',   due_date:'2026-02-01' },
+  { id:'t7',  customer_id:'c7',  amount:450,  status:'غير مدفوع', description:'خدمات',        due_date: TODAY       },
+  { id:'t8',  customer_id:'c8',  amount:5200, status:'غير مدفوع', description:'بضاعة كبيرة',  due_date:'2026-04-28' },
+  { id:'t9',  customer_id:'c1',  amount:800,  status:'مدفوع',     description:'سابق',         due_date:'2026-03-01' },
+  { id:'t10', customer_id:'c3',  amount:500,  status:'مدفوع',     description:'دفعة أولى',    due_date:'2026-04-01' },
+  { id:'t11', customer_id:'c9',  amount:3000, status:'غير مدفوع', description:'بضاعة',        due_date:'2026-05-05' },
+  { id:'t12', customer_id:'c10', amount:750,  status:'غير مدفوع', description:'خدمات',        due_date:'2026-04-30' },
 ];
 
 // ── دوال مساعدة ──
@@ -1282,8 +1279,8 @@ const ini = s =>
   (s || '؟').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('');
 
 const COLS = [
-  '#3b82f6', '#059669', '#dc2626', '#7c3aed',
-  '#d97706', '#0891b2', '#db2777', '#ea580c'
+  '#3b82f6','#059669','#dc2626','#7c3aed',
+  '#d97706','#0891b2','#db2777','#ea580c'
 ];
 
 const clr = s => {
@@ -1294,25 +1291,25 @@ const clr = s => {
 
 const ha = (hex, a) => {
   try {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
     return `rgba(${r},${g},${b},${a})`;
   } catch { return `rgba(0,0,200,${a})`; }
 };
 
 const sc = s =>
-  s === 'مدفوع'                       ? 'sd' :
-  s === 'معدوم' || s === 'تبرعات'     ? 'sw' :
-  s === 'غير مدفوع'                   ? 'sp' : 'sm';
+  s === 'مدفوع'                     ? 'sd' :
+  s === 'معدوم' || s === 'تبرعات'   ? 'sw' :
+  s === 'غير مدفوع'                 ? 'sp' : 'sm';
 
 const accClass = s =>
-  s === 'مدفوع'                       ? 'acc-paid'     :
-  s === 'معدوم'                       ? 'acc-write'    :
-  s === 'غير مدفوع'                   ? 'acc-unpaid'   : 'acc-pending';
+  s === 'مدفوع'     ? 'acc-paid'    :
+  s === 'معدوم'     ? 'acc-write'   :
+  s === 'غير مدفوع' ? 'acc-unpaid'  : 'acc-pending';
 
-const gcn  = id => { const c = AC.find(x => x.id === id); return c ? c.name  : 'عميل'; };
-const gcph = id => { const c = AC.find(x => x.id === id); return c ? (c.phone || '—') : '—'; };
+const gcn  = id => { const c = AC.find(x => x.id === id); return c ? c.name        : 'عميل'; };
+const gcph = id => { const c = AC.find(x => x.id === id); return c ? (c.phone||'—') : '—';   };
 
 // ── حسابات العميل ──
 function custDebt(id) {
@@ -1320,13 +1317,11 @@ function custDebt(id) {
     .filter(t => t.customer_id === id && t.status === 'غير مدفوع')
     .reduce((s, t) => s + Number(t.amount || 0), 0);
 }
-
 function custPaid(id) {
   return AT
     .filter(t => t.customer_id === id && t.status === 'مدفوع')
     .reduce((s, t) => s + Number(t.amount || 0), 0);
 }
-
 function custHasDebt(id) {
   return AT.some(t =>
     t.customer_id === id &&
@@ -1335,7 +1330,6 @@ function custHasDebt(id) {
     t.status !== 'تبرعات'
   );
 }
-
 function custIsOverdue(id) {
   return AT.some(t =>
     t.customer_id === id &&
@@ -1364,31 +1358,24 @@ function login() {
   if (fab) fab.style.display = 'flex';
   initApp();
 }
-
 function logout() {
   document.getElementById('app').style.display = 'none';
-  document.getElementById('fab').style.display = 'none';
+  const fab = document.getElementById('fab');
+  if (fab) fab.style.display = 'none';
   document.getElementById('screen-login').style.display = 'flex';
   document.getElementById('screen-login').classList.add('active');
 }
+
 // ── تهيئة التطبيق ──
 async function initApp() {
-
   document.getElementById('hdate').textContent =
     new Date().toLocaleDateString('ar-SA', {
-      weekday: 'long',
-      year:    'numeric',
-      month:   'long',
-      day:     'numeric'
+      weekday:'long', year:'numeric', month:'long', day:'numeric'
     });
-
   document.getElementById('rdlb').textContent =
     new Date().toLocaleDateString('ar-SA', {
-      weekday: 'long',
-      day:     'numeric',
-      month:   'long'
+      weekday:'long', day:'numeric', month:'long'
     });
-
   document.getElementById('uav').textContent    = ini(CONFIG.MERCHANT_NAME);
   document.getElementById('pav').textContent    = ini(CONFIG.MERCHANT_NAME);
   document.getElementById('pname').textContent  = CONFIG.MERCHANT_NAME;
@@ -1396,52 +1383,31 @@ async function initApp() {
   document.getElementById('pshop').textContent  = '📦 ' + CONFIG.SHOP_NAME;
   document.getElementById('appurl').textContent = CONFIG.GITHUB_URL;
   document.getElementById('nd').value           = TODAY;
-
   await loadData();
 }
 
 // ── تحميل البيانات ──
 async function loadData() {
-
   if (sbOk && sb) {
     try {
       const custResult = await sb
-        .from('customers')
-        .select('id, name, phone')
-        .limit(500);
-
+        .from('customers').select('id, name, phone').limit(500);
       const txResult = await sb
         .from('transactions')
         .select('id, customer_id, amount, status, description, due_date, created_at')
-        .order('created_at', { ascending: false })
-        .limit(1000);
+        .order('created_at', { ascending: false }).limit(1000);
 
-      if (!custResult.error && custResult.data?.length) {
-        AC = custResult.data;
-      } else {
-        AC = DC;
-      }
-
-      if (!txResult.error && txResult.data?.length) {
-        AT = txResult.data;
-      } else {
-        AT = DT;
-      }
-
+      AC = (!custResult.error && custResult.data?.length) ? custResult.data : DC;
+      AT = (!txResult.error  && txResult.data?.length)   ? txResult.data   : DT;
       document.getElementById('dbst').textContent = '✅ متصل بـ Supabase';
-
     } catch {
-      AC = DC;
-      AT = DT;
+      AC = DC; AT = DT;
       document.getElementById('dbst').textContent = '⚠️ وضع تجريبي';
     }
-
   } else {
-    AC = DC;
-    AT = DT;
+    AC = DC; AT = DT;
     document.getElementById('dbst').textContent = '⚠️ وضع تجريبي';
   }
-
   renderAll();
 }
 
@@ -1457,59 +1423,53 @@ function renderAll() {
 
 // ── إحصائيات الرئيسية ──
 function renderHomeStats() {
-
   const paid = AT.filter(t => t.status === 'مدفوع');
   const unpd = AT.filter(t => t.status === 'غير مدفوع');
   const pend = AT.filter(t =>
-    !['مدفوع', 'معدوم', 'تبرعات', 'غير مدفوع'].includes(t.status)
+    !['مدفوع','معدوم','تبرعات','غير مدفوع'].includes(t.status)
   );
-
-  const tot = AT  .reduce((s, t) => s + Number(t.amount || 0), 0);
-  const spd = paid.reduce((s, t) => s + Number(t.amount || 0), 0);
-  const sun = unpd.reduce((s, t) => s + Number(t.amount || 0), 0);
-  const spe = pend.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const tot = AT  .reduce((s,t) => s + Number(t.amount||0), 0);
+  const spd = paid.reduce((s,t) => s + Number(t.amount||0), 0);
+  const sun = unpd.reduce((s,t) => s + Number(t.amount||0), 0);
+  const spe = pend.reduce((s,t) => s + Number(t.amount||0), 0);
 
   document.getElementById('tot-debt').textContent   = fmt(tot);
   document.getElementById('tot-unpaid').textContent = fmt(sun);
   document.getElementById('tot-pend').textContent   = fmt(spe);
   document.getElementById('tot-paid').textContent   = fmt(spd);
-
-  document.getElementById('sc-active').textContent =
+  document.getElementById('sc-active').textContent  =
     AC.filter(c => custHasDebt(c.id)).length;
-
-  document.getElementById('sc-over').textContent =
+  document.getElementById('sc-over').textContent    =
     AT.filter(t => t.status === 'غير مدفوع' && t.due_date <= TODAY).length;
 
   const pct = tot > 0 ? Math.round(spd / tot * 100) : 0;
-  document.getElementById('cpct').textContent    = pct + '%';
-  document.getElementById('cbar').style.width    = pct + '%';
-  document.getElementById('cl1').textContent     = 'الكل: '     + fmt(tot);
-  document.getElementById('cl2').textContent     = 'المحصّل: '  + fmt(spd);
-
-  document.getElementById('rbdg').textContent =
+  document.getElementById('cpct').textContent  = pct + '%';
+  document.getElementById('cbar').style.width  = pct + '%';
+  document.getElementById('cl1').textContent   = 'الكل: '    + fmt(tot);
+  document.getElementById('cl2').textContent   = 'المحصّل: ' + fmt(spd);
+  document.getElementById('rbdg').textContent  =
     AT.filter(t => t.due_date === TODAY && t.status === 'غير مدفوع').length || '0';
 }
 
 // ── بناء سطر معاملة ──
 function txRow(t) {
-  const nm      = gcn(t.customer_id);
-  const co      = clr(nm);
-  const ac      = accClass(t.status);
-  const amtClr  =
-    t.status === 'مدفوع'  ? 'var(--green)' :
-    t.status === 'معدوم'  ? 'var(--gray)'  : 'var(--red)';
+  const nm     = gcn(t.customer_id);
+  const co     = clr(nm);
+  const ac     = accClass(t.status);
+  const amtClr =
+    t.status === 'مدفوع' ? 'var(--green)' :
+    t.status === 'معدوم' ? 'var(--gray)'  : 'var(--red)';
   const overdue =
     t.status === 'غير مدفوع' && t.due_date < TODAY ? ' · ⚠️ متأخر' : '';
-
   return `
     <div class="txi ${ac}" onclick="openCust('${t.customer_id}')">
       <div class="tav"
-        style="background:${ha(co, .15)}; color:${co}; border-color:${co}">
+        style="background:${ha(co,.15)}; color:${co}; border-color:${co}">
         ${ini(nm)}
       </div>
       <div class="ti">
         <div class="tn">${nm}</div>
-        <div class="td">${t.description || '—'} · ${t.due_date || '—'}${overdue}</div>
+        <div class="td">${t.description||'—'} · ${t.due_date||'—'}${overdue}</div>
       </div>
       <div class="tr">
         <div class="ta" style="color:${amtClr}">${fmt(t.amount)}</div>
@@ -1523,23 +1483,22 @@ function custRow(c, debt) {
   const co      = clr(c.name);
   const overdue = custIsOverdue(c.id);
   const cls     = debt > 0 ? (overdue ? 'acc-unpaid' : 'acc-pending') : 'acc-paid';
-
   return `
     <div class="txi ${cls}" onclick="openCust('${c.id}')">
       <div class="tav"
-        style="background:${ha(co, .15)}; color:${co}; border-color:${co}">
+        style="background:${ha(co,.15)}; color:${co}; border-color:${co}">
         ${ini(c.name)}
       </div>
       <div class="ti">
         <div class="tn">${c.name}</div>
-        <div class="td">${c.phone || '—'}${overdue ? ' · ⚠️ متأخر' : ''}</div>
+        <div class="td">${c.phone||'—'}${overdue ? ' · ⚠️ متأخر' : ''}</div>
       </div>
       <div class="tr">
-        <div class="ta" style="color:${debt > 0 ? 'var(--red)' : 'var(--green)'}">
-          ${debt > 0 ? fmt(debt) : '✓ مسدّد'}
+        <div class="ta" style="color:${debt>0?'var(--red)':'var(--green)'}">
+          ${debt>0 ? fmt(debt) : '✓ مسدّد'}
         </div>
-        <span class="ts ${debt > 0 ? (overdue ? 'sp' : 'sm') : 'sd'}">
-          ${debt > 0 ? (overdue ? 'متأخر' : 'غير مدفوع') : 'مدفوع'}
+        <span class="ts ${debt>0?(overdue?'sp':'sm'):'sd'}">
+          ${debt>0?(overdue?'متأخر':'غير مدفوع'):'مدفوع'}
         </span>
       </div>
     </div>`;
@@ -1550,9 +1509,8 @@ function renderHomeTx() {
   const el   = document.getElementById('htxl');
   const list = AT
     .filter(t => t.status === 'غير مدفوع')
-    .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
+    .sort((a,b) => Number(b.amount||0) - Number(a.amount||0))
     .slice(0, 6);
-
   if (!list.length) {
     el.innerHTML = `
       <div class="empty">
@@ -1561,11 +1519,9 @@ function renderHomeTx() {
       </div>`;
     return;
   }
-
   el.innerHTML =
     '<div class="txl" style="padding:0 12px 12px">' +
-    list.map(t => txRow(t)).join('') +
-    '</div>';
+    list.map(t => txRow(t)).join('') + '</div>';
 }
 
 // ── البحث الفوري ──
@@ -1575,32 +1531,24 @@ function onSearch() { renderC(); }
 function renderC() {
   const q  = (document.getElementById('csrch')?.value || '').trim();
   const el = document.getElementById('cl');
-
   let list = AC.filter(c => {
-
-    // فلترة البحث
     if (q) {
-      const ql = q.toLowerCase();
+      const ql        = q.toLowerCase();
       const nameMatch  = (c.name  || '').toLowerCase().includes(ql);
       const phoneMatch = (c.phone || '').includes(q);
       if (!nameMatch && !phoneMatch) return false;
     }
-
-    // فلترة الحالة
-    const debt = custDebt(c.id);
     if (cf === 'active')  return custHasDebt(c.id);
-    if (cf === 'unpaid')  return debt > 0;
+    if (cf === 'unpaid')  return custDebt(c.id) > 0;
     if (cf === 'overdue') return custIsOverdue(c.id);
     if (cf === 'pending') return AT.some(t =>
       t.customer_id === c.id &&
-      !['مدفوع', 'معدوم', 'تبرعات', 'غير مدفوع'].includes(t.status)
+      !['مدفوع','معدوم','تبرعات','غير مدفوع'].includes(t.status)
     );
     if (cf === 'all') return AT.some(t => t.customer_id === c.id);
     return true;
   });
-
   list = sortCustomers(list);
-
   if (!list.length) {
     el.innerHTML = `
       <div class="empty">
@@ -1611,38 +1559,28 @@ function renderC() {
       </div>`;
     return;
   }
-
   el.innerHTML = list.map(c => custRow(c, custDebt(c.id))).join('');
 }
 
 // ── ترتيب العملاء ──
 function sortCustomers(list) {
   return [...list].sort((a, b) => {
-
     if (sortKey === 'name') {
-      const na = a.name || '';
-      const nb = b.name || '';
       return sortDir === 'asc'
-        ? na.localeCompare(nb, 'ar')
-        : nb.localeCompare(na, 'ar');
+        ? (a.name||'').localeCompare(b.name||'', 'ar')
+        : (b.name||'').localeCompare(a.name||'', 'ar');
     }
-
     if (sortKey === 'debt') {
-      const va = custDebt(a.id);
-      const vb = custDebt(b.id);
+      const va = custDebt(a.id), vb = custDebt(b.id);
       return sortDir === 'asc' ? va - vb : vb - va;
     }
-
     if (sortKey === 'date') {
       const ta = AT.filter(t => t.customer_id === a.id)
-        .map(t => t.due_date || '').sort().pop() || '';
+        .map(t => t.due_date||'').sort().pop() || '';
       const tb = AT.filter(t => t.customer_id === b.id)
-        .map(t => t.due_date || '').sort().pop() || '';
-      return sortDir === 'asc'
-        ? ta.localeCompare(tb)
-        : tb.localeCompare(ta);
+        .map(t => t.due_date||'').sort().pop() || '';
+      return sortDir === 'asc' ? ta.localeCompare(tb) : tb.localeCompare(ta);
     }
-
     return 0;
   });
 }
@@ -1651,23 +1589,18 @@ function sortCustomers(list) {
 function toggleSort() {
   document.getElementById('sort-panel').classList.toggle('open');
 }
-
 function setSort(k, d, el) {
-  sortKey = k;
-  sortDir = d;
+  sortKey = k; sortDir = d;
   document.querySelectorAll('#sort-panel .sort-opt')
     .forEach(o => o.classList.remove('active'));
   el.classList.add('active');
   renderC();
 }
-
 function toggleTxSort() {
   document.getElementById('tx-sort-panel').classList.toggle('open');
 }
-
 function setTxSort(k, d, el) {
-  txSortKey = k;
-  txSortDir = d;
+  txSortKey = k; txSortDir = d;
   document.querySelectorAll('#tx-sort-panel .sort-opt')
     .forEach(o => o.classList.remove('active'));
   el.classList.add('active');
@@ -1688,44 +1621,32 @@ function fchip(el, val, grp) {
 function renderT() {
   const q  = (document.getElementById('tsrch')?.value || '').trim().toLowerCase();
   const el = document.getElementById('tl');
-
   let list = AT.filter(t => {
-
-    // فلترة البحث
     if (q) {
       const nm = gcn(t.customer_id).toLowerCase();
       const ph = gcph(t.customer_id);
-      const nameMatch   = nm.includes(q);
-      const phoneMatch  = ph.includes(q);
-      const amountMatch = String(t.amount).includes(q);
-      const descMatch   = (t.description || '').toLowerCase().includes(q);
-      if (!nameMatch && !phoneMatch && !amountMatch && !descMatch) return false;
+      if (!nm.includes(q) && !ph.includes(q) &&
+          !String(t.amount).includes(q) &&
+          !(t.description||'').toLowerCase().includes(q)) return false;
     }
-
-    // فلترة الحالة
     if (tf === 'all')     return true;
     if (tf === 'unpaid')  return t.status === 'غير مدفوع';
     if (tf === 'paid')    return t.status === 'مدفوع';
     if (tf === 'overdue') return t.status === 'غير مدفوع' && t.due_date < TODAY;
-    if (tf === 'pending') return !['مدفوع', 'معدوم', 'تبرعات', 'غير مدفوع'].includes(t.status);
+    if (tf === 'pending') return !['مدفوع','معدوم','تبرعات','غير مدفوع'].includes(t.status);
     if (tf === 'write')   return t.status === 'معدوم' || t.status === 'تبرعات';
     return true;
   });
-
-  // ترتيب
   list = [...list].sort((a, b) => {
     if (txSortKey === 'amount') {
-      const va = Number(a.amount || 0);
-      const vb = Number(b.amount || 0);
-      return txSortDir === 'asc' ? va - vb : vb - va;
+      return txSortDir === 'asc'
+        ? Number(a.amount||0) - Number(b.amount||0)
+        : Number(b.amount||0) - Number(a.amount||0);
     }
     const da = a.due_date || a.created_at || '';
     const db = b.due_date || b.created_at || '';
-    return txSortDir === 'asc'
-      ? da.localeCompare(db)
-      : db.localeCompare(da);
+    return txSortDir === 'asc' ? da.localeCompare(db) : db.localeCompare(da);
   });
-
   if (!list.length) {
     el.innerHTML = `
       <div class="empty">
@@ -1734,13 +1655,12 @@ function renderT() {
       </div>`;
     return;
   }
-
   el.innerHTML = list.slice(0, 100).map(t => txRow(t)).join('');
 }
 
 // ── رسم التذكيرات ──
 function renderRem() {
-  const el = document.getElementById('rl');
+  const el  = document.getElementById('rl');
   const tit = document.querySelector('#screen-reminders .stitle');
 
   const weekLater = new Date();
@@ -1771,14 +1691,13 @@ function renderRem() {
       </div>`;
     return;
   }
-
   el.innerHTML = list.map(t => {
-    const nm = gcn(t.customer_id);
-    const ph = gcph(t.customer_id);
-    const lbl = rf === 'overdue' ? 'متأخر' : rf === 'week' ? 'هذا الأسبوع' : 'مستحق اليوم';
+    const nm  = gcn(t.customer_id);
+    const ph  = gcph(t.customer_id);
+    const lbl = rf === 'overdue' ? 'متأخر' :
+                rf === 'week'    ? 'هذا الأسبوع' : 'مستحق اليوم';
     return `
-      <div class="ri"
-        onclick="openRem('${nm}', '${fmt(t.amount)}', '${ph}')">
+      <div class="ri" onclick="openRem('${nm}','${fmt(t.amount)}','${ph}')">
         <div class="rnm">${nm}</div>
         <div class="rtm">📞 ${ph} · ${lbl}</div>
         <div class="ram">${fmt(t.amount)}</div>
@@ -1789,15 +1708,12 @@ function renderRem() {
 
 // ── رسم التقارير ──
 function renderRep() {
-  const paid  = AT.filter(t => t.status === 'مدفوع');
-  const unpd  = AT.filter(t => t.status === 'غير مدفوع');
-  const pend  = AT.filter(t =>
-    !['مدفوع', 'معدوم', 'تبرعات', 'غير مدفوع'].includes(t.status)
+  const paid = AT.filter(t => t.status === 'مدفوع');
+  const unpd = AT.filter(t => t.status === 'غير مدفوع');
+  const pend = AT.filter(t =>
+    !['مدفوع','معدوم','تبرعات','غير مدفوع'].includes(t.status)
   );
-  const writ  = AT.filter(t =>
-    t.status === 'معدوم' || t.status === 'تبرعات'
-  );
-
+  const writ = AT.filter(t => t.status === 'معدوم' || t.status === 'تبرعات');
   const tot  = AT.length || 1;
   const P    = n => Math.round(n / tot * 100);
   const pp   = P(paid.length);
@@ -1814,7 +1730,6 @@ function renderRep() {
     e.setAttribute('stroke-dashoffset', -off);
     off += len;
   }
-
   arc('dpaid',  pp);
   arc('dunpd',  pu);
   arc('dpend',  pe);
@@ -1825,11 +1740,10 @@ function renderRep() {
   document.getElementById('lunpd').textContent  = pu + '%';
   document.getElementById('lpend').textContent  = pe + '%';
   document.getElementById('lwrite').textContent = pw + '%';
-
-  document.getElementById('rpaid').textContent =
-    fmt(paid.reduce((s, t) => s + Number(t.amount || 0), 0));
-  document.getElementById('runpd').textContent =
-    fmt(unpd.reduce((s, t) => s + Number(t.amount || 0), 0));
+  document.getElementById('rpaid').textContent  =
+    fmt(paid.reduce((s,t) => s + Number(t.amount||0), 0));
+  document.getElementById('runpd').textContent  =
+    fmt(unpd.reduce((s,t) => s + Number(t.amount||0), 0));
   document.getElementById('rcusts').textContent =
     AC.filter(c => custHasDebt(c.id)).length;
   document.getElementById('rtxcnt').textContent = AT.length;
@@ -1838,17 +1752,17 @@ function renderRep() {
 // ── فتح كشف حساب العميل ──
 function openCust(id) {
   curCustId = id;
-  const c    = AC.find(x => x.id === id) || { id, name:'عميل', phone:'—' };
-  const co   = clr(c.name);
-  const txs  = AT
+  const c   = AC.find(x => x.id === id) || { id, name:'عميل', phone:'—' };
+  const co  = clr(c.name);
+  const txs = AT
     .filter(t => t.customer_id === id)
-    .sort((a, b) => (b.due_date || '').localeCompare(a.due_date || ''));
+    .sort((a,b) => (b.due_date||'').localeCompare(a.due_date||''));
   const debt = txs
     .filter(t => t.status === 'غير مدفوع')
-    .reduce((s, t) => s + Number(t.amount || 0), 0);
+    .reduce((s,t) => s + Number(t.amount||0), 0);
   const paid = txs
     .filter(t => t.status === 'مدفوع')
-    .reduce((s, t) => s + Number(t.amount || 0), 0);
+    .reduce((s,t) => s + Number(t.amount||0), 0);
 
   const av = document.getElementById('cd-av');
   av.textContent       = ini(c.name);
@@ -1864,29 +1778,27 @@ function openCust(id) {
 
   if (!txs.length) {
     document.getElementById('cd-stmt').innerHTML = `
-      <div style="text-align:center; padding:20px; color:var(--sub); font-size:15px; font-weight:700">
+      <div style="text-align:center; padding:20px; color:var(--sub);
+        font-size:15px; font-weight:700">
         لا توجد معاملات
       </div>`;
   } else {
     document.getElementById('cd-stmt').innerHTML = txs.map(t => {
       const dotClr =
-        t.status === 'مدفوع'  ? 'var(--green)' :
-        t.status === 'معدوم'  ? '#888888'       : 'var(--red)';
+        t.status === 'مدفوع' ? 'var(--green)' :
+        t.status === 'معدوم' ? '#888888'       : 'var(--red)';
       const amtClr =
-        t.status === 'مدفوع'  ? 'var(--green)' :
-        t.status === 'معدوم'  ? '#888888'       : 'var(--red)';
+        t.status === 'مدفوع' ? 'var(--green)' :
+        t.status === 'معدوم' ? '#888888'       : 'var(--red)';
       const warn =
         t.status === 'غير مدفوع' && t.due_date < TODAY ? ' ⚠️' : '';
-
       return `
-return `
-        <div class="stmt-item" style="cursor:pointer"
-          onclick="editFromStmt('${t.id}')">
+        <div class="stmt-item" onclick="editFromStmt('${t.id}')">
           <div class="stmt-dot" style="background:${dotClr}"></div>
           <div class="stmt-info">
-            <div class="stmt-desc">${t.description || '—'}${warn}</div>
+            <div class="stmt-desc">${t.description||'—'}${warn}</div>
             <div class="stmt-date">
-              استحقاق: ${t.due_date || '—'} ·
+              استحقاق: ${t.due_date||'—'} ·
               <span class="ts ${sc(t.status)}"
                 style="font-size:11px; padding:2px 6px">
                 ${t.status}
@@ -1897,12 +1809,11 @@ return `
         </div>`;
     }).join('');
   }
-
   document.getElementById('ov-cust').classList.add('open');
 }
 
-// ── فتح نافذة التذكير ──
-  function payFirstUnpaid() {
+// ── تسجيل دفعة من كشف الحساب ──
+function payFirstUnpaid() {
   const unpaid = AT.find(t =>
     t.customer_id === curCustId && t.status === 'غير مدفوع'
   );
@@ -1914,17 +1825,39 @@ return `
   setTimeout(() => openTxEdit(unpaid.id), 300);
 }
 
+// ── تعديل معاملة من كشف الحساب ──
 function editFromStmt(txId) {
   document.getElementById('ov-cust').classList.remove('open');
   setTimeout(() => openTxEdit(txId), 300);
 }
+
+// ── فتح واتساب ──
+function openWhatsApp() {
+  const c = AC.find(x => x.id === curCustId);
+  if (!c || !c.phone) { toast('لا يوجد رقم هاتف'); return; }
+  const phone = c.phone.replace(/\D/g, '');
+  const debt  = fmt(custDebt(curCustId));
+  const msg   = encodeURIComponent(
+    'السلام عليكم ' + c.name + '\nنذكّركم بمبلغ مستحق: ' + debt
+  );
+  window.open('https://wa.me/' + phone + '?text=' + msg, '_blank');
+}
+
+// ── الاتصال ──
+function openCall() {
+  const c = AC.find(x => x.id === curCustId);
+  if (!c || !c.phone) { toast('لا يوجد رقم هاتف'); return; }
+  window.location.href = 'tel:' + c.phone;
+}
+
+// ── فتح نافذة التذكير ──
 function openRem(name, amount, phone) {
   document.getElementById('rmtit').textContent = 'تذكير: ' + name;
   document.getElementById('rmmsg').value =
     'السلام عليكم ' + name + '\n' +
     'نذكّركم بدفعة مستحقة بمبلغ ' + amount + '\n' +
     'يرجى التواصل لترتيب السداد\n' +
-    'شكراً 🙏';
+    'شكراً';
   document.getElementById('ov-rem').classList.add('open');
 }
 
@@ -1936,23 +1869,14 @@ async function saveTx() {
   const due    = document.getElementById('nd').value;
   const desc   = document.getElementById('ndes').value.trim();
 
-  if (!name || !amount) {
-    toast('⚠️ أدخل الاسم والمبلغ');
-    return;
-  }
+  if (!name || !amount) { toast('⚠️ أدخل الاسم والمبلغ'); return; }
 
   if (sbOk && sb) {
     let c = AC.find(x => x.name === name);
     if (!c) {
       const result = await sb
-        .from('customers')
-        .insert({ name, phone })
-        .select()
-        .single();
-      if (result.data) {
-        c = result.data;
-        AC.push(c);
-      }
+        .from('customers').insert({ name, phone }).select().single();
+      if (result.data) { c = result.data; AC.push(c); }
     }
     if (c) {
       const txResult = await sb
@@ -1963,20 +1887,14 @@ async function saveTx() {
           status      : 'غير مدفوع',
           description : desc,
           due_date    : due
-        })
-        .select()
-        .single();
+        }).select().single();
       if (txResult.data) AT.unshift(txResult.data);
     }
-
   } else {
     let c = AC.find(x => x.name === name);
-    if (!c) {
-      c = { id:'c' + Date.now(), name, phone };
-      AC.push(c);
-    }
+    if (!c) { c = { id:'c'+Date.now(), name, phone }; AC.push(c); }
     AT.unshift({
-      id          : 't' + Date.now(),
+      id          : 't'+Date.now(),
       customer_id : c.id,
       amount      : Number(amount),
       status      : 'غير مدفوع',
@@ -1986,15 +1904,16 @@ async function saveTx() {
     });
   }
 
-  ['nc', 'nph', 'na', 'ndes'].forEach(id =>
+  ['nc','nph','na','ndes'].forEach(id =>
     document.getElementById(id).value = ''
   );
   document.getElementById('nd').value = TODAY;
   document.getElementById('ov-atx').classList.remove('open');
-
   renderAll();
   toast('✅ تمت إضافة الدين بنجاح');
 }
+
+// ── فتح نافذة تعديل المعاملة ──
 function openTxEdit(txId) {
   const t = AT.find(x => x.id === txId);
   if (!t) return;
@@ -2013,7 +1932,7 @@ function openTxEdit(txId) {
     const original = parseFloat(t.amount || 0);
     if (partial > 0 && partial < original) {
       const remaining = original - partial;
-      info.style.display = 'block';
+      info.style.display  = 'block';
       info.textContent =
         'المدفوع: ' + CONFIG.CURRENCY + ' ' + partial.toLocaleString('ar-SA') +
         ' — المتبقي: ' + CONFIG.CURRENCY + ' ' + remaining.toLocaleString('ar-SA') +
@@ -2022,10 +1941,10 @@ function openTxEdit(txId) {
       info.style.display = 'none';
     }
   };
-
   document.getElementById('ov-txedit').classList.add('open');
 }
 
+// ── حفظ تعديل المعاملة ──
 async function saveTxEdit() {
   const id      = document.getElementById('te-id').value;
   const newDue  = document.getElementById('te-due').value;
@@ -2038,16 +1957,13 @@ async function saveTxEdit() {
   const originalAmount = Number(t.amount || 0);
 
   if (partial > 0 && partial < originalAmount) {
-
-    // دفعة جزئية — الجزء المدفوع
     t.amount  = partial;
     t.status  = 'مدفوع';
     if (newDue) t.due_date = newDue;
 
-    // إنشاء معاملة جديدة بالمبلغ المتبقي
     const remaining = originalAmount - partial;
     const newTx = {
-      id          : 't' + Date.now(),
+      id          : 't'+Date.now(),
       customer_id : t.customer_id,
       amount      : remaining,
       status      : 'غير مدفوع',
@@ -2061,30 +1977,24 @@ async function saveTxEdit() {
       await sb.from('transactions')
         .update({ amount: partial, status: 'مدفوع', due_date: t.due_date })
         .eq('id', id);
-      await sb.from('transactions')
-        .insert({
-          customer_id : newTx.customer_id,
-          amount      : remaining,
-          status      : 'غير مدفوع',
-          description : newTx.description,
-          due_date    : newTx.due_date
-        });
+      await sb.from('transactions').insert({
+        customer_id : newTx.customer_id,
+        amount      : remaining,
+        status      : 'غير مدفوع',
+        description : newTx.description,
+        due_date    : newTx.due_date
+      });
     }
-
     toast('✅ تم تسجيل الدفعة الجزئية — تم إنشاء دين جديد بالمتبقي');
 
   } else {
-
-    // تغيير الحالة أو التاريخ فقط
     t.status = status;
     if (newDue) t.due_date = newDue;
-
     if (sbOk && sb) {
       await sb.from('transactions')
         .update({ status: t.status, due_date: t.due_date })
         .eq('id', id);
     }
-
     toast('✅ تم تحديث المعاملة');
   }
 
@@ -2092,12 +2002,13 @@ async function saveTxEdit() {
   document.getElementById('ov-cust').classList.remove('open');
   renderAll();
 }
+
 // ── رسالة التنبيه ──
 function toast(msg) {
   const t = document.getElementById('toast');
-  t.textContent          = msg;
-  t.style.opacity        = '1';
-  t.style.transform      = 'translateX(-50%) translateY(0)';
+  t.textContent     = msg;
+  t.style.opacity   = '1';
+  t.style.transform = 'translateX(-50%) translateY(0)';
   setTimeout(() => {
     t.style.opacity   = '0';
     t.style.transform = 'translateX(-50%) translateY(20px)';
