@@ -1360,7 +1360,8 @@ function showS(id, el) {
 function login() {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
-  document.getElementById('fab').style.display = 'flex';
+  const fab = document.getElementById('fab');
+  if (fab) fab.style.display = 'flex';
   initApp();
 }
 
