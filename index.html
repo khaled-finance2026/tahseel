@@ -1161,7 +1161,56 @@ body {
     </div>
   </div>
 </div>
+<div class="ov" id="ov-txedit" onclick="this.classList.remove('open')">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="hdl"></div>
+    <div class="stit">تعديل المعاملة</div>
 
+    <input type="hidden" id="te-id">
+
+    <div class="fg">
+      <label>المبلغ الأصلي</label>
+      <input class="fi" id="te-amount" type="number"
+        readonly style="opacity:0.6; background:#eee">
+    </div>
+
+    <div class="fg">
+      <label>دفعة جزئية (₪) — فارغ يعني دفع كامل</label>
+      <input class="fi" id="te-partial" type="number"
+        placeholder="مثال: 500 من أصل 1200">
+    </div>
+
+    <div class="fg">
+      <label>تاريخ الاستحقاق</label>
+      <input class="fi" id="te-due" type="date">
+    </div>
+
+    <div class="fg">
+      <label>حالة الدفع</label>
+      <select class="fi" id="te-status">
+        <option value="غير مدفوع">غير مدفوع</option>
+        <option value="مدفوع">مدفوع كامل</option>
+        <option value="معدوم">معدوم</option>
+        <option value="تبرعات">تبرعات</option>
+      </select>
+    </div>
+
+    <div id="te-info"
+      style="background:#fff0cc; border:2px solid #e6a800;
+      border-radius:10px; padding:12px; margin-bottom:14px;
+      font-size:14px; font-weight:700; color:#7a4800;
+      display:none">
+    </div>
+
+    <button class="bp" onclick="saveTxEdit()">
+      حفظ التعديل
+    </button>
+    <button class="bs"
+      onclick="document.getElementById('ov-txedit').classList.remove('open')">
+      إلغاء
+    </button>
+  </div>
+</div>
 <div id="toast"></div>
 <button class="fab"
   onclick="document.getElementById('ov-atx').classList.add('open')">
