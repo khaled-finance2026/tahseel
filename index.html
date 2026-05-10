@@ -1952,7 +1952,103 @@ async function saveTx() {
   renderAll();
   toast('✅ تمت إضافة الدين بنجاح');
 }
+function openTxEdit(txId) {
+  const t = AT.find(x => x.id === txId);
+  if (!t) return;
 
+  document.getElementById('te-id').value      = t.id;
+  document.getElementById('te-amount').value  = t.amount;
+  document.getElementById('te-due').value     = t.due_date || '';
+  document.getElementById('te-status').value  = t.status;
+  document.getElementById('te-partial').value = '';
+
+  const info = document.getElementById('te-info');
+  info.style.display = 'none';
+
+  document.getElementById('te-partial').oninput = function() {
+    const partial  = parseFloat(this.value || 0);
+    const original = parseFloat(t.amount || 0);
+    if (partial > 0 && partial < original) {
+      const remaining = original - partial;
+      info.style.display = 'block';
+      info.textContent =
+        'المدفوع: ' + CONFIG.CURRENCY + ' ' + partial.toLocaleString('ar-SA') +
+        ' — المتبقي: ' + CONFIG.CURRENCY + ' ' + remaining.toLocaleString('ar-SA') +
+        ' (سيُنشأ دين جديد بالمتبقي)';
+    } else {
+      info.style.display = 'none';
+    }
+  };
+
+  document.getElementById('ov-txedit').classList.add('open');
+}
+
+async function saveTxEdit() {
+  const id      = document.getElementById('te-id').value;
+  const newDue  = document.getElementById('te-due').value;
+  const status  = document.getElementById('te-status').value;
+  const partial = parseFloat(document.getElementById('te-partial').value || 0);
+
+  const t = AT.find(x => x.id === id);
+  if (!t) return;
+
+  const originalAmount = Number(t.amount || 0);
+
+  if (partial > 0 && partial < originalAmount) {
+
+    // دفعة جزئية — الجزء المدفوع
+    t.amount  = partial;
+    t.status  = 'مدفوع';
+    if (newDue) t.due_date = newDue;
+
+    // إنشاء معاملة جديدة بالمبلغ المتبقي
+    const remaining = originalAmount - partial;
+    const newTx = {
+      id          : 't' + Date.now(),
+      customer_id : t.customer_id,
+      amount      : remaining,
+      status      : 'غير مدفوع',
+      description : 'متبقي — ' + (t.description || 'دفعة سابقة'),
+      due_date    : newDue || t.due_date,
+      created_at  : new Date().toISOString()
+    };
+    AT.unshift(newTx);
+
+    if (sbOk && sb) {
+      await sb.from('transactions')
+        .update({ amount: partial, status: 'مدفوع', due_date: t.due_date })
+        .eq('id', id);
+      await sb.from('transactions')
+        .insert({
+          customer_id : newTx.customer_id,
+          amount      : remaining,
+          status      : 'غير مدفوع',
+          description : newTx.description,
+          due_date    : newTx.due_date
+        });
+    }
+
+    toast('✅ تم تسجيل الدفعة الجزئية — تم إنشاء دين جديد بالمتبقي');
+
+  } else {
+
+    // تغيير الحالة أو التاريخ فقط
+    t.status = status;
+    if (newDue) t.due_date = newDue;
+
+    if (sbOk && sb) {
+      await sb.from('transactions')
+        .update({ status: t.status, due_date: t.due_date })
+        .eq('id', id);
+    }
+
+    toast('✅ تم تحديث المعاملة');
+  }
+
+  document.getElementById('ov-txedit').classList.remove('open');
+  document.getElementById('ov-cust').classList.remove('open');
+  renderAll();
+}
 // ── رسالة التنبيه ──
 function toast(msg) {
   const t = document.getElementById('toast');
