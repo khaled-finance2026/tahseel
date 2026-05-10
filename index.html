@@ -1081,8 +1081,7 @@ body {
     </div>
     <div class="stmt-title">كشف حساب كامل</div>
     <div id="cd-stmt"></div>
-    <button class="bp"
-      onclick="document.getElementById('ov-cust').classList.remove('open'); toast('✅ تم تسجيل الدفع')">
+<button class="bp" onclick="payFirstUnpaid()">
       💰 تسجيل دفعة
     </button>
     <button class="bs"
@@ -1212,7 +1211,8 @@ body {
   </div>
 </div>
 <div id="toast"></div>
-<button class="fab"
+<button class="fab" id="fab"
+  style="display:none"
   onclick="document.getElementById('ov-atx').classList.add('open')">
   ＋
 </button>
@@ -1239,6 +1239,8 @@ let sortDir   = 'desc';
 let txSortKey = 'amount';
 let txSortDir = 'desc';
 let curNav    = document.getElementById('nhome');
+let rf        = 'today';
+let curCustId = null;
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -1358,15 +1360,16 @@ function showS(id, el) {
 function login() {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  document.getElementById('fab').style.display = 'flex';
   initApp();
 }
 
 function logout() {
   document.getElementById('app').style.display = 'none';
+  document.getElementById('fab').style.display = 'none';
   document.getElementById('screen-login').style.display = 'flex';
   document.getElementById('screen-login').classList.add('active');
 }
-
 // ── تهيئة التطبيق ──
 async function initApp() {
 
@@ -1677,6 +1680,7 @@ function fchip(el, val, grp) {
   el.classList.add('active');
   if      (grp === 'c') { cf = val; renderC(); }
   else if (grp === 't') { tf = val; renderT(); }
+  else if (grp === 'r') { rf = val; renderRem(); }
 }
 
 // ── رسم قائمة المعاملات ──
@@ -1735,16 +1739,34 @@ function renderT() {
 
 // ── رسم التذكيرات ──
 function renderRem() {
-  const el   = document.getElementById('rl');
-  const list = AT.filter(t =>
-    t.status === 'غير مدفوع' && t.due_date === TODAY
-  );
+  const el = document.getElementById('rl');
+  const tit = document.querySelector('#screen-reminders .stitle');
+
+  const weekLater = new Date();
+  weekLater.setDate(weekLater.getDate() + 7);
+  const weekStr = weekLater.toISOString().slice(0, 10);
+
+  let list = [];
+  if (rf === 'today') {
+    list = AT.filter(t => t.status === 'غير مدفوع' && t.due_date === TODAY);
+    if (tit) tit.textContent = 'تذكيرات اليوم';
+  } else if (rf === 'overdue') {
+    list = AT.filter(t => t.status === 'غير مدفوع' && t.due_date < TODAY);
+    if (tit) tit.textContent = 'الديون المتأخرة';
+  } else if (rf === 'week') {
+    list = AT.filter(t =>
+      t.status === 'غير مدفوع' &&
+      t.due_date >= TODAY &&
+      t.due_date <= weekStr
+    );
+    if (tit) tit.textContent = 'تذكيرات الأسبوع';
+  }
 
   if (!list.length) {
     el.innerHTML = `
       <div class="empty">
         <div class="empty-ico">✅</div>
-        <div class="empty-txt">لا تذكيرات لليوم</div>
+        <div class="empty-txt">لا توجد تذكيرات</div>
       </div>`;
     return;
   }
@@ -1752,11 +1774,12 @@ function renderRem() {
   el.innerHTML = list.map(t => {
     const nm = gcn(t.customer_id);
     const ph = gcph(t.customer_id);
+    const lbl = rf === 'overdue' ? 'متأخر' : rf === 'week' ? 'هذا الأسبوع' : 'مستحق اليوم';
     return `
       <div class="ri"
         onclick="openRem('${nm}', '${fmt(t.amount)}', '${ph}')">
         <div class="rnm">${nm}</div>
-        <div class="rtm">📞 ${ph} · مستحق اليوم</div>
+        <div class="rtm">📞 ${ph} · ${lbl}</div>
         <div class="ram">${fmt(t.amount)}</div>
         <div class="rbg">تذكير</div>
       </div>`;
@@ -1813,6 +1836,7 @@ function renderRep() {
 
 // ── فتح كشف حساب العميل ──
 function openCust(id) {
+  curCustId = id;
   const c    = AC.find(x => x.id === id) || { id, name:'عميل', phone:'—' };
   const co   = clr(c.name);
   const txs  = AT
@@ -1854,7 +1878,9 @@ function openCust(id) {
         t.status === 'غير مدفوع' && t.due_date < TODAY ? ' ⚠️' : '';
 
       return `
-        <div class="stmt-item">
+return `
+        <div class="stmt-item" style="cursor:pointer"
+          onclick="editFromStmt('${t.id}')">
           <div class="stmt-dot" style="background:${dotClr}"></div>
           <div class="stmt-info">
             <div class="stmt-desc">${t.description || '—'}${warn}</div>
@@ -1875,6 +1901,22 @@ function openCust(id) {
 }
 
 // ── فتح نافذة التذكير ──
+  function payFirstUnpaid() {
+  const unpaid = AT.find(t =>
+    t.customer_id === curCustId && t.status === 'غير مدفوع'
+  );
+  if (!unpaid) {
+    toast('لا توجد ديون مستحقة لهذا العميل');
+    return;
+  }
+  document.getElementById('ov-cust').classList.remove('open');
+  setTimeout(() => openTxEdit(unpaid.id), 300);
+}
+
+function editFromStmt(txId) {
+  document.getElementById('ov-cust').classList.remove('open');
+  setTimeout(() => openTxEdit(txId), 300);
+}
 function openRem(name, amount, phone) {
   document.getElementById('rmtit').textContent = 'تذكير: ' + name;
   document.getElementById('rmmsg').value =
